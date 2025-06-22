@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"unsafe"
 
 	"github.com/jacobsa/fuse/fuseops"
 	"github.com/jacobsa/fuse/internal/buffer"
@@ -205,7 +206,7 @@ func (c *Connection) Init() error {
 	}
 
 	outArgs := uint64(0)
-	outArgs |= fusekernel.InitDirectIOAllowMMAP
+	outArgs |= fusekernel.InitFusePassthrough
 	initOp.Flags |= fusekernel.InitExt
 	initOp.Flags2 = uint32(outArgs >> 32)
 	fmt.Println("Init flags:", initOp.Flags, initOp.Flags2)
@@ -582,4 +583,34 @@ func (c *Connection) close() error {
 	// write, but luckily we exclude the possibility of a race by requiring the
 	// user to respond to all ops first.
 	return c.dev.Close()
+}
+
+const (
+	_DEV_IOC_BACKING_OPEN  = 0x4010e501
+	_DEV_IOC_BACKING_CLOSE = 0x4004e502
+)
+
+// RegisterBackingFd registers the given file descriptor in the
+// kernel, so the kernel can bypass FUSE and access the backing file
+// directly for read and write calls. On success a backing ID is
+// returned. The backing ID should unregistered using
+// UnregisterBackingFd() once the file is released.  Within the
+// kernel, an inode can only have a single backing file, so multiple
+// Open/Create calls should coordinate to return a consistent backing
+// ID.
+func (c *Connection) RegisterBackingFd(m *fuseops.BackingMap) (int32, syscall.Errno) {
+	c.mu.Lock()
+	c.debugLogger.Printf("RegisterBackingFd: MountFd: %d, BackingMap: %v", c.dev.Fd(), m)
+	id, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(c.dev.Fd()), uintptr(_DEV_IOC_BACKING_OPEN), uintptr(unsafe.Pointer(m)))
+	c.mu.Unlock()
+	return int32(id), errno
+}
+
+// UnregisterBackingFd unregisters the given ID in the kernel. The ID
+// should have been acquired before using RegisterBackingFd.
+func (c *Connection) UnregisterBackingFd(id int32) syscall.Errno {
+	// ms.writeMu.Lock()
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(c.dev.Fd()), uintptr(_DEV_IOC_BACKING_CLOSE), uintptr(unsafe.Pointer(&id)))
+
+	return errno
 }

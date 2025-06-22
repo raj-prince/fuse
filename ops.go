@@ -46,4 +46,5 @@ type initOp struct {
 	MaxWrite      uint32
 	MaxPages      uint16
 	Flags2        uint32
+	MaxStackDepth uint32
 }

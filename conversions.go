@@ -894,6 +894,13 @@ func (c *Connection) kernelResponseForOp(
 			out.OpenFlags |= uint32(fusekernel.OpenDirectIO)
 		}
 
+		out.OpenFlags |= uint32(fusekernel.OpenPassthrough)
+		out.OpenFlags &= ^uint32(fusekernel.OpenKeepCache)
+		fd, errt := c.RegisterBackingFd(&o.BackingMap)
+		c.debugLogger.Printf("OpenFileOp: %v, Handle: %d, BackingMap: %v",
+			o.Inode, o.Handle, o.BackingMap)
+		c.debugLogger.Printf("OpenFileOp, Fd: %d, output: %v", fd, errt)
+
 	case *fuseops.ReadFileOp:
 		if o.Dst != nil {
 			m.Append(o.Dst)
@@ -997,6 +1004,7 @@ func (c *Connection) kernelResponseForOp(
 		out.MaxWrite = o.MaxWrite
 		out.TimeGran = 1
 		out.Flags2 = o.Flags2
+		out.MaxDepthStack = 2
 		out.MaxPages = o.MaxPages
 
 	default:

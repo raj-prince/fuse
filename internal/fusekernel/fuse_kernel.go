@@ -233,6 +233,7 @@ const (
 	OpenKeepCache   OpenResponseFlags = 1 << 1 // don't invalidate the data cache on open
 	OpenNonSeekable OpenResponseFlags = 1 << 2 // mark the file as non-seekable (not supported on OS X)
 	OpenCacheDir    OpenResponseFlags = 1 << 3 // allow caching this directory
+	OpenPassthrough OpenResponseFlags = 1 << 7 // Linux passthrough mode
 
 	OpenPurgeAttr OpenResponseFlags = 1 << 30 // OS X
 	OpenPurgeUBC  OpenResponseFlags = 1 << 31 // OS X
@@ -759,7 +760,8 @@ type InitOut struct {
 	MaxPages            uint16
 	MapAlignment        uint16
 	Flags2              uint32
-	Unused              [7]uint32
+	MaxDepthStack       uint32
+	Unused              [6]uint32
 }
 
 type InterruptIn struct {

@@ -678,6 +678,8 @@ type OpenFileOp struct {
 	OpenFlags fusekernel.OpenFlags
 
 	OpContext OpContext
+
+	BackingMap BackingMap
 }
 
 // Read data from a file previously opened with CreateFile or OpenFile.
@@ -1008,4 +1010,10 @@ type FallocateOp struct {
 type SyncFSOp struct {
 	Inode     InodeID
 	OpContext OpContext
+}
+
+type BackingMap struct {
+	Fd      int32
+	Flags   uint32
+	padding uint64
 }
