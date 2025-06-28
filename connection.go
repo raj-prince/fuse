@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"path"
 	"runtime"
@@ -60,8 +60,8 @@ const maxReadahead = 1 << 20
 // receive and reply to requests from the kernel.
 type Connection struct {
 	cfg         MountConfig
-	debugLogger *log.Logger
-	errorLogger *log.Logger
+	debugLogger *slog.Logger
+	errorLogger *slog.Logger
 
 	// The device through which we're talking to the kernel, and the protocol
 	// version that we're using to talk to it.
@@ -95,8 +95,8 @@ type opState struct {
 // The loggers may be nil.
 func newConnection(
 	cfg MountConfig,
-	debugLogger *log.Logger,
-	errorLogger *log.Logger,
+	debugLogger *slog.Logger,
+	errorLogger *slog.Logger,
 	dev *os.File) (*Connection, error) {
 	c := &Connection{
 		cfg:         cfg,
@@ -238,7 +238,7 @@ func (c *Connection) debugLog(
 		fmt.Sprintf(format, v...))
 
 	// Print it.
-	c.debugLogger.Println(msg)
+	c.debugLogger.Debug(msg)
 }
 
 // LOCKS_EXCLUDED(c.mu)
@@ -528,7 +528,7 @@ func (c *Connection) Reply(ctx context.Context, opErr error) error {
 
 	// Error logging
 	if logError {
-		c.errorLogger.Printf("Op 0x%08x %T] -> Error: %q", fuseID, op, opErr)
+		c.errorLogger.Error("Op 0x%08x %T] -> Error: %q", fuseID, op, opErr)
 	}
 
 	// Send the reply to the kernel, if one is required.
@@ -549,7 +549,7 @@ func (c *Connection) Reply(ctx context.Context, opErr error) error {
 		if err != nil {
 			writeErrMsg := fmt.Sprintf("writeMessage: %v %v", err, outMsg.OutHeaderBytes())
 			if c.errorLogger != nil {
-				c.errorLogger.Print(writeErrMsg)
+				c.errorLogger.Debug(writeErrMsg)
 			}
 			return fmt.Errorf(writeErrMsg)
 		}

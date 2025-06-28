@@ -56,7 +56,7 @@ var errFallback = errors.New("sentinel: fallback to fusermount(1)")
 
 func directmount(dir string, cfg *MountConfig) (*os.File, error) {
 	if cfg.DebugLogger != nil {
-		cfg.DebugLogger.Println("Preparing for direct mounting")
+		cfg.DebugLogger.Info("Preparing for direct mounting")
 	}
 	// We use syscall.Open + os.NewFile instead of os.OpenFile so that the file
 	// is opened in blocking mode. When opened in non-blocking mode, the Go
@@ -68,7 +68,7 @@ func directmount(dir string, cfg *MountConfig) (*os.File, error) {
 	dev := os.NewFile(uintptr(fd), "/dev/fuse")
 
 	if cfg.DebugLogger != nil {
-		cfg.DebugLogger.Println("Successfully opened the /dev/fuse in blocking mode")
+		cfg.DebugLogger.Info("Successfully opened the /dev/fuse in blocking mode")
 	}
 	// As per libfuse/fusermount.c:847: https://bit.ly/2SgtWYM#L847
 	data := fmt.Sprintf("fd=%d,rootmode=40000,user_id=%d,group_id=%d",
@@ -94,7 +94,7 @@ func directmount(dir string, cfg *MountConfig) (*os.File, error) {
 	data += "," + mapToOptionsString(opts)
 
 	if cfg.DebugLogger != nil {
-		cfg.DebugLogger.Println("Starting the unix mounting")
+		cfg.DebugLogger.Info("Starting the unix mounting")
 	}
 	if err := unix.Mount(
 		fsname,    // source
@@ -110,7 +110,7 @@ func directmount(dir string, cfg *MountConfig) (*os.File, error) {
 		return nil, err
 	}
 	if cfg.DebugLogger != nil {
-		cfg.DebugLogger.Println("Unix mounting completed successfully")
+		cfg.DebugLogger.Info("Unix mounting completed successfully")
 	}
 	return dev, nil
 }
@@ -124,7 +124,7 @@ func mount(dir string, cfg *MountConfig, ready chan<- error) (*os.File, error) {
 	ready <- nil
 
 	if cfg.DebugLogger != nil {
-		cfg.DebugLogger.Println("Parsing fuse file descriptor")
+		cfg.DebugLogger.Info("Parsing fuse file descriptor")
 	}
 	// If the mountpoint is /dev/fd/N, assume that the file descriptor N is an
 	// already open FUSE channel. Parse it, cast it to an fd, and don't do any
@@ -139,7 +139,7 @@ func mount(dir string, cfg *MountConfig, ready chan<- error) (*os.File, error) {
 	dev, err := directmount(dir, cfg)
 	if err == errFallback {
 		if cfg.DebugLogger != nil {
-			cfg.DebugLogger.Println("Directmount failed. Trying fallback.")
+			cfg.DebugLogger.Info("Directmount failed. Trying fallback.")
 		}
 		fusermountPath, err := findFusermount()
 		if err != nil {

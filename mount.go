@@ -17,7 +17,7 @@ package fuse
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -55,7 +55,7 @@ func Mount(
 
 	// Begin the mounting process, which will continue in the background.
 	if config.DebugLogger != nil {
-		config.DebugLogger.Println("Beginning the mounting kickoff process")
+		config.DebugLogger.Info("Beginning the mounting kickoff process")
 	}
 	ready := make(chan error, 1)
 	dev, err := mount(dir, config, ready)
@@ -63,7 +63,7 @@ func Mount(
 		return nil, fmt.Errorf("mount: %v", err)
 	}
 	if config.DebugLogger != nil {
-		config.DebugLogger.Println("Completed the mounting kickoff process")
+		config.DebugLogger.Info("Completed the mounting kickoff process")
 	}
 
 	// Choose a parent context for ops.
@@ -73,7 +73,7 @@ func Mount(
 	}
 
 	if config.DebugLogger != nil {
-		config.DebugLogger.Println("Creating a connection object")
+		config.DebugLogger.Info("Creating a connection object")
 	}
 	// Create a Connection object wrapping the device.
 	connection, err := newConnection(
@@ -85,7 +85,7 @@ func Mount(
 		return nil, fmt.Errorf("newConnection: %v", err)
 	}
 	if config.DebugLogger != nil {
-		config.DebugLogger.Println("Successfully created the connection")
+		config.DebugLogger.Info("Successfully created the connection")
 	}
 
 	// Serve the connection in the background. When done, set the join status.
@@ -96,7 +96,7 @@ func Mount(
 	}()
 
 	if config.DebugLogger != nil {
-		config.DebugLogger.Println("Waiting for mounting process to complete")
+		config.DebugLogger.Info("Waiting for mounting process to complete")
 	}
 
 	// Wait for the mount process to complete.
@@ -127,9 +127,9 @@ func checkMountPoint(dir string) error {
 	return nil
 }
 
-func fusermount(binary string, argv []string, additionalEnv []string, wait bool, debugLogger *log.Logger) (*os.File, error) {
+func fusermount(binary string, argv []string, additionalEnv []string, wait bool, debugLogger *slog.Logger) (*os.File, error) {
 	if debugLogger != nil {
-		debugLogger.Println("Creating a socket pair")
+		debugLogger.Info("Creating a socket pair")
 	}
 	// Create a socket pair.
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
@@ -138,7 +138,7 @@ func fusermount(binary string, argv []string, additionalEnv []string, wait bool,
 	}
 
 	if debugLogger != nil {
-		debugLogger.Println("Creating files to wrap the sockets")
+		debugLogger.Info("Creating files to wrap the sockets")
 	}
 	// Wrap the sockets into os.File objects that we will pass off to fusermount.
 	writeFile := os.NewFile(uintptr(fds[0]), "fusermount-child-writes")
@@ -148,7 +148,7 @@ func fusermount(binary string, argv []string, additionalEnv []string, wait bool,
 	defer readFile.Close()
 
 	if debugLogger != nil {
-		debugLogger.Println("Starting fusermount/os mount")
+		debugLogger.Info("Starting fusermount/os mount")
 	}
 	// Start fusermount/mount_macfuse/mount_osxfuse.
 	cmd := exec.Command(binary, argv...)
@@ -168,7 +168,7 @@ func fusermount(binary string, argv []string, additionalEnv []string, wait bool,
 	}
 
 	if debugLogger != nil {
-		debugLogger.Println("Wrapping socket pair in a connection")
+		debugLogger.Info("Wrapping socket pair in a connection")
 	}
 	// Wrap the socket file in a connection.
 	c, err := net.FileConn(readFile)
@@ -178,7 +178,7 @@ func fusermount(binary string, argv []string, additionalEnv []string, wait bool,
 	defer c.Close()
 
 	if debugLogger != nil {
-		debugLogger.Println("Checking that we have a unix domain socket")
+		debugLogger.Info("Checking that we have a unix domain socket")
 	}
 	// We expect to have a Unix domain socket.
 	uc, ok := c.(*net.UnixConn)
@@ -187,7 +187,7 @@ func fusermount(binary string, argv []string, additionalEnv []string, wait bool,
 	}
 
 	if debugLogger != nil {
-		debugLogger.Println("Read a message from socket")
+		debugLogger.Info("Read a message from socket")
 	}
 	// Read a message.
 	buf := make([]byte, 32) // expect 1 byte
@@ -211,7 +211,7 @@ func fusermount(binary string, argv []string, additionalEnv []string, wait bool,
 	scm := scms[0]
 
 	if debugLogger != nil {
-		debugLogger.Println("Successfully read the socket message.")
+		debugLogger.Info("Successfully read the socket message.")
 	}
 
 	// Pull out the FD returned by fusermount
@@ -225,7 +225,7 @@ func fusermount(binary string, argv []string, additionalEnv []string, wait bool,
 	}
 
 	if debugLogger != nil {
-		debugLogger.Println("Converting FD into os.File")
+		debugLogger.Info("Converting FD into os.File")
 	}
 	// Turn the FD into an os.File.
 	return os.NewFile(uintptr(gotFds[0]), "/dev/fuse"), nil
