@@ -31,122 +31,146 @@ func opName(op interface{}) string {
 	return strings.TrimSuffix(t.Name(), "Op")
 }
 
-func describeRequest(op interface{}) (s string) {
-	v := reflect.ValueOf(op).Elem()
-
-	// We will set up a comma-separated list of components.
+func describeRequest(op interface{}) string {
 	var components []string
 	addComponent := func(format string, v ...interface{}) {
 		components = append(components, fmt.Sprintf(format, v...))
 	}
 
-	// Include an inode number, if available.
-	if f := v.FieldByName("Inode"); f.IsValid() {
-		addComponent("inode %v", f.Interface())
-	}
-
-	// Include a parent inode number, if available.
-	if f := v.FieldByName("Parent"); f.IsValid() {
-		addComponent("parent %v", f.Interface())
-	}
-
-	// Include a name, if available.
-	if f := v.FieldByName("Name"); f.IsValid() {
-		addComponent("name %q", f.Interface())
-	}
-
-	if f := v.FieldByName("OpContext"); f.IsValid() {
-		if meta, ok := f.Interface().(fuseops.OpContext); ok {
-			addComponent("PID %+v", meta.Pid)
-		}
-	}
-
-	// Handle special cases.
-	switch typed := op.(type) {
+	switch typedOp := op.(type) {
 	case *interruptOp:
-		addComponent("fuseid 0x%08x", typed.FuseID)
+		addComponent("fuseid 0x%08x", typedOp.FuseID)
 
 	case *unknownOp:
-		addComponent("opcode %d", typed.OpCode)
+		if typedOp.Inode != 0 {
+			addComponent("inode %v", typedOp.Inode)
+		}
+		addComponent("opcode %d", typedOp.OpCode)
 
 	case *fuseops.SetInodeAttributesOp:
-		if typed.Size != nil {
-			addComponent("size %d", *typed.Size)
+		if typedOp.Inode != 0 {
+			addComponent("inode %v", typedOp.Inode)
 		}
-
-		if typed.Mode != nil {
-			addComponent("mode %v", *typed.Mode)
+		if typedOp.OpContext.Pid != 0 {
+			addComponent("PID %+v", typedOp.OpContext.Pid)
 		}
-
-		if typed.Atime != nil {
-			addComponent("atime %v", *typed.Atime)
+		if typedOp.Size != nil {
+			addComponent("size %d", *typedOp.Size)
 		}
-
-		if typed.Mtime != nil {
-			addComponent("mtime %v", *typed.Mtime)
+		if typedOp.Mode != nil {
+			addComponent("mode %v", *typedOp.Mode)
+		}
+		if typedOp.Atime != nil {
+			addComponent("atime %v", *typedOp.Atime)
+		}
+		if typedOp.Mtime != nil {
+			addComponent("mtime %v", *typedOp.Mtime)
 		}
 
 	case *fuseops.RenameOp:
-		addComponent("old_parent %v", typed.OldParent)
-		addComponent("old_name %q", typed.OldName)
-		addComponent("new_parent %v", typed.NewParent)
-		addComponent("new_name %q", typed.NewName)
+		if typedOp.OpContext.Pid != 0 {
+			addComponent("PID %+v", typedOp.OpContext.Pid)
+		}
+		addComponent("old_parent %v", typedOp.OldParent)
+		addComponent("old_name %q", typedOp.OldName)
+		addComponent("new_parent %v", typedOp.NewParent)
+		addComponent("new_name %q", typedOp.NewName)
 
 	case *fuseops.ReadFileOp:
-		addComponent("handle %d", typed.Handle)
-		addComponent("offset %d", typed.Offset)
-		addComponent("%d bytes", typed.Size)
+		if typedOp.Inode != 0 {
+			addComponent("inode %v", typedOp.Inode)
+		}
+		if typedOp.OpContext.Pid != 0 {
+			addComponent("PID %+v", typedOp.OpContext.Pid)
+		}
+		addComponent("handle %d", typedOp.Handle)
+		addComponent("offset %d", typedOp.Offset)
+		addComponent("%d bytes", typedOp.Size)
 
 	case *fuseops.WriteFileOp:
-		addComponent("handle %d", typed.Handle)
-		addComponent("offset %d", typed.Offset)
-		addComponent("%d bytes", len(typed.Data))
+		if typedOp.Inode != 0 {
+			addComponent("inode %v", typedOp.Inode)
+		}
+		if typedOp.OpContext.Pid != 0 {
+			addComponent("PID %+v", typedOp.OpContext.Pid)
+		}
+		addComponent("handle %d", typedOp.Handle)
+		addComponent("offset %d", typedOp.Offset)
+		addComponent("%d bytes", len(typedOp.Data))
 
 	case *fuseops.RemoveXattrOp:
-		addComponent("name %s", typed.Name)
+		if typedOp.Inode != 0 {
+			addComponent("inode %v", typedOp.Inode)
+		}
+		if typedOp.Name != "" {
+			addComponent("name %q", typedOp.Name)
+		}
+		if typedOp.OpContext.Pid != 0 {
+			addComponent("PID %+v", typedOp.OpContext.Pid)
+		}
+		addComponent("name %s", typedOp.Name)
 
 	case *fuseops.GetXattrOp:
-		addComponent("name %s", typed.Name)
+		if typedOp.Inode != 0 {
+			addComponent("inode %v", typedOp.Inode)
+		}
+		if typedOp.Name != "" {
+			addComponent("name %q", typedOp.Name)
+		}
+		if typedOp.OpContext.Pid != 0 {
+			addComponent("PID %+v", typedOp.OpContext.Pid)
+		}
+		addComponent("name %s", typedOp.Name)
 
 	case *fuseops.SetXattrOp:
-		addComponent("name %s", typed.Name)
+		if typedOp.Inode != 0 {
+			addComponent("inode %v", typedOp.Inode)
+		}
+		if typedOp.Name != "" {
+			addComponent("name %q", typedOp.Name)
+		}
+		if typedOp.OpContext.Pid != 0 {
+			addComponent("PID %+v", typedOp.OpContext.Pid)
+		}
+		addComponent("name %s", typedOp.Name)
 
 	case *fuseops.FallocateOp:
-		addComponent("offset %d", typed.Offset)
-		addComponent("length %d", typed.Length)
-		addComponent("mode %d", typed.Mode)
+		if typedOp.Inode != 0 {
+			addComponent("inode %v", typedOp.Inode)
+		}
+		if typedOp.OpContext.Pid != 0 {
+			addComponent("PID %+v", typedOp.OpContext.Pid)
+		}
+		addComponent("offset %d", typedOp.Offset)
+		addComponent("length %d", typedOp.Length)
+		addComponent("mode %d", typedOp.Mode)
 
 	case *fuseops.ReleaseFileHandleOp:
-		addComponent("handle %d", typed.Handle)
+		if typedOp.OpContext.Pid != 0 {
+			addComponent("PID %+v", typedOp.OpContext.Pid)
+		}
+		addComponent("handle %d", typedOp.Handle)
+	default:
+		return opName(op) // Fallback if type is not handled
 	}
 
-	// Use just the name if there is no extra info.
 	if len(components) == 0 {
 		return opName(op)
 	}
-
-	// Otherwise, include the extra info.
 	return fmt.Sprintf("%s (%s)", opName(op), strings.Join(components, ", "))
 }
 
 func describeResponse(op interface{}) string {
-	v := reflect.ValueOf(op).Elem()
-
-	// We will set up a comma-separated list of components.
 	var components []string
 	addComponent := func(format string, v ...interface{}) {
 		components = append(components, fmt.Sprintf(format, v...))
 	}
 
-	// Include a resulting inode number, if available.
-	if f := v.FieldByName("Entry"); f.IsValid() {
-		if entry, ok := f.Interface().(fuseops.ChildInodeEntry); ok {
-			addComponent("inode %v", entry.Child)
-		}
-	}
-	switch typed := op.(type) {
+	switch typedOp := op.(type) {
 	case *fuseops.OpenFileOp:
-		addComponent("handle %d", typed.Handle)
+		addComponent("handle %d", typedOp.Handle)
+	default:
+		return opName(op) // Fallback if type is not handled
 	}
 
 	return fmt.Sprintf("%s (%s)", opName(op), strings.Join(components, ", "))

@@ -20,8 +20,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path"
-	"runtime"
+	// "path"
+	// "runtime"
 	"sync"
 	"syscall"
 
@@ -79,6 +79,9 @@ type Connection struct {
 	// Freelists, serviced by freelists.go.
 	inMessages  freelist.Freelist // GUARDED_BY(mu)
 	outMessages freelist.Freelist // GUARDED_BY(mu)
+
+	logChan chan string
+	wg      sync.WaitGroup
 }
 
 // State that is maintained for each in-flight op. This is stuffed into the
@@ -104,7 +107,11 @@ func newConnection(
 		errorLogger: errorLogger,
 		dev:         dev,
 		cancelFuncs: make(map[uint64]func()),
+		logChan:     make(chan string, 2000000),
 	}
+
+	c.wg.Add(1)
+	go c.processLogs()
 
 	// Initialize.
 	if err := c.Init(); err != nil {
@@ -113,6 +120,13 @@ func newConnection(
 	}
 
 	return c, nil
+}
+
+func (c *Connection) processLogs() {
+	defer c.wg.Done()
+	for msg := range c.logChan {
+		c.debugLogger.Debug(msg)
+	}
 }
 
 // Init performs the work necessary to cause the mount process to complete.
@@ -219,26 +233,34 @@ func (c *Connection) debugLog(
 	}
 
 	// Get file:line info.
-	var file string
-	var line int
-	var ok bool
+	// var file string
+	// var line int
+	// var ok bool
 
-	_, file, line, ok = runtime.Caller(calldepth)
-	if !ok {
-		file = "???"
-	}
+	// _, file, line, ok = runtime.Caller(calldepth)
+	// if !ok {
+	// 	file = "???"
+	// }
 
-	fileLine := fmt.Sprintf("%v:%v", path.Base(file), line)
+	// fileLine := fmt.Sprintf("%v:%v", path.Base(file), line)
 
 	// Format the actual message to be printed.
 	msg := fmt.Sprintf(
-		"Op 0x%08x %24s] %v",
+		"Op 0x%08x] %v",
 		fuseID,
-		fileLine,
 		fmt.Sprintf(format, v...))
+	// msg := "ReadFile, 20, 394, 54i549, 5454"
+
+	select {
+	case c.logChan <- msg:
+		// Message sent to channel.
+	default:
+		// Channel is full, log a warning (or handle differently).
+		panic("Log channel is full, dropping message:")
+	}
 
 	// Print it.
-	c.debugLogger.Debug(msg)
+	// c.debugLogger.Debug(msg)
 }
 
 // LOCKS_EXCLUDED(c.mu)
@@ -424,6 +446,7 @@ func (c *Connection) ReadOp() (_ context.Context, op interface{}, _ error) {
 		// Choose an ID for this operation for the purposes of logging, and log it.
 		if c.debugLogger != nil {
 			c.debugLog(inMsg.Header().Unique, 1, "<- %s", describeRequest(op))
+			// c.debugLog(inMsg.Header().Unique, 1, "test")
 		}
 
 		// Special case: handle interrupt requests inline.
@@ -519,6 +542,7 @@ func (c *Connection) Reply(ctx context.Context, opErr error) error {
 	if c.debugLogger != nil {
 		if opErr == nil {
 			c.debugLog(fuseID, 1, "-> %s", describeResponse(op))
+			// c.debugLog(fuseID, 1, "test")
 		} else {
 			if !logError {
 				c.debugLog(fuseID, 1, "-> Error: %q", opErr.Error())
@@ -572,6 +596,9 @@ func (c *Connection) callbackForOp(op interface{}) func() {
 // Close the connection. Must not be called until operations that were read
 // from the connection have been responded to.
 func (c *Connection) close() error {
+	close(c.logChan)
+	c.wg.Wait()
+
 	// Posix doesn't say that close can be called concurrently with read or
 	// write, but luckily we exclude the possibility of a race by requiring the
 	// user to respond to all ops first.
