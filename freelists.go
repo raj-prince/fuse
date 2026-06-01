@@ -15,8 +15,6 @@
 package fuse
 
 import (
-	"unsafe"
-
 	"github.com/jacobsa/fuse/internal/buffer"
 )
 
@@ -24,37 +22,32 @@ import (
 // buffer.InMessage
 ////////////////////////////////////////////////////////////////////////
 
-// LOCKS_EXCLUDED(c.mu)
 func (c *Connection) getInMessage() *buffer.InMessage {
-	c.mu.Lock()
-	x := (*buffer.InMessage)(c.inMessages.Get())
-	c.mu.Unlock()
-
-	if x == nil {
-		x = buffer.NewInMessage()
+	select {
+	case x := <-c.inMessages:
+		return x
+	default:
+		return buffer.NewInMessage()
 	}
-
-	return x
 }
 
-// LOCKS_EXCLUDED(c.mu)
 func (c *Connection) putInMessage(x *buffer.InMessage) {
-	c.mu.Lock()
-	c.inMessages.Put(unsafe.Pointer(x))
-	c.mu.Unlock()
+	select {
+	case c.inMessages <- x:
+	default:
+		// Pool is full, discard the buffer.
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////
 // buffer.OutMessage
 ////////////////////////////////////////////////////////////////////////
 
-// LOCKS_EXCLUDED(c.mu)
 func (c *Connection) getOutMessage() *buffer.OutMessage {
-	c.mu.Lock()
-	x := (*buffer.OutMessage)(c.outMessages.Get())
-	c.mu.Unlock()
-
-	if x == nil {
+	var x *buffer.OutMessage
+	select {
+	case x = <-c.outMessages:
+	default:
 		x = new(buffer.OutMessage)
 	}
 	x.Reset()
@@ -62,9 +55,10 @@ func (c *Connection) getOutMessage() *buffer.OutMessage {
 	return x
 }
 
-// LOCKS_EXCLUDED(c.mu)
 func (c *Connection) putOutMessage(x *buffer.OutMessage) {
-	c.mu.Lock()
-	c.outMessages.Put(unsafe.Pointer(x))
-	c.mu.Unlock()
+	select {
+	case c.outMessages <- x:
+	default:
+		// Pool is full, discard the buffer.
+	}
 }
